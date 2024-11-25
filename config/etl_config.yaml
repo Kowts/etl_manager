@@ -1,0 +1,166 @@
+app:
+  debug: true
+  environment: development
+  host: 0.0.0.0
+  name: ETL Manager
+  port: 8501
+  version: 1.0.0
+data_sources:
+  templates:
+    mysql:
+      driver: mysql
+      required_fields:
+      - host
+      - port
+      - database
+      - user
+      - password
+      type: database
+    postgresql:
+      driver: postgresql
+      optional_fields:
+      - schema
+      - ssl_mode
+      required_fields:
+      - host
+      - port
+      - database
+      - user
+      - password
+      type: database
+    s3:
+      driver: s3
+      optional_fields:
+      - region
+      - endpoint_url
+      required_fields:
+      - bucket
+      - access_key
+      - secret_key
+      type: storage
+    sftp:
+      driver: sftp
+      optional_fields:
+      - password
+      - key_file
+      required_fields:
+      - host
+      - username
+      type: storage
+database:
+  host: localhost
+  max_overflow: 10
+  name: etl_manager.db
+  password: ''
+  pool_size: 5
+  port: 5432
+  type: sqlite
+  user: etl_user
+development:
+  debugging:
+    save_job_output: true
+    verbose_logging: true
+  testing:
+    enabled: true
+    test_data_dir: test_data
+job_templates:
+  api_to_database:
+    optional_params:
+    - headers
+    - parameters
+    required_params:
+    - api_endpoint
+    - target_table
+    type: extract
+  database_to_database:
+    optional_params:
+    - batch_size
+    - truncate_target
+    required_params:
+    - source_query
+    - target_table
+    type: transfer
+  file_to_database:
+    optional_params:
+    - delimiter
+    - encoding
+    required_params:
+    - file_pattern
+    - target_table
+    type: load
+jobs:
+  Test:
+    enabled: true
+    last_run: null
+    schedule: daily at 18:51
+    script_path: etl_scripts\Test.py
+logging:
+  file:
+    backup_count: 5
+    enabled: true
+    max_size_mb: 100
+    path: logs/etl_manager.log
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  level: INFO
+  rotation:
+    interval: 1
+    retention_days: 30
+    when: midnight
+monitoring:
+  alerts:
+    job_failure:
+      enabled: true
+      threshold: 3
+    long_running:
+      enabled: true
+      threshold: 7200
+    resource_usage:
+      cpu_threshold: 85
+      enabled: true
+      memory_threshold: 90
+  metrics:
+    collection_interval: 60
+    enabled: true
+    retention_days: 7
+notifications:
+  email:
+    enabled: false
+    recipients: []
+    sender_email: ''
+    sender_password: ''
+    smtp_port: 587
+    smtp_server: smtp.gmail.com
+  slack:
+    channel: '#etl-alerts'
+    enabled: false
+    webhook_url: ''
+resources:
+  cpu:
+    max_cores_per_job: 2
+  memory:
+    max_per_job_mb: 1024
+    total_limit_mb: 4096
+  storage:
+    max_temp_size_mb: 1000
+    scripts_dir: etl_scripts
+    temp_dir: tmp
+scheduler:
+  default_timeout: 3600
+  maintenance_window:
+    enabled: false
+    end_time: 05:00
+    start_time: 01:00
+    timezone: UTC
+  max_concurrent_jobs: 3
+  retry:
+    delay: 300
+    max_attempts: 3
+security:
+  api:
+    enabled: true
+    rate_limit: 100
+    require_key: true
+  authentication:
+    enabled: true
+    method: basic
+    session_duration: 3600

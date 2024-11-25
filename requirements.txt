@@ -1,0 +1,36 @@
+# Core Dependencies
+streamlit==1.31.0
+sqlalchemy==2.0.25
+pyyaml==6.0.1
+python-dotenv==1.0.0
+
+# Database Drivers
+psycopg2-binary==2.9.9  # PostgreSQL
+pymysql==1.1.0          # MySQL
+
+# ETL Dependencies
+pandas==2.1.4
+numpy==1.26.3
+schedule==1.2.1
+APScheduler==3.10.4
+
+# Data Processing
+requests==2.31.0
+beautifulsoup4==4.12.2
+openpyxl==3.1.2        # Excel support
+xlrd==2.0.1            # Legacy Excel support
+
+# Visualization
+plotly==5.18.0
+altair==5.2.0
+
+# Development Tools
+black==23.12.1         # Code formatting
+flake8==7.0.0          # Code linting
+pytest==7.4.4          # Testing
+pytest-cov==4.1.0      # Test coverage
+
+# Utilities
+tqdm==4.66.1           # Progress bars
+tenacity==8.2.3        # Retry logic
+python-dateutil==2.8.2 # Date handling
