@@ -1,0 +1,31 @@
+api:
+  enabled: true
+  rate_limit: 100
+  require_key: true
+database:
+  host: localhost
+  name: etl_manager.db
+  password: ''
+  port: 5432
+  type: sqlite
+  user: etl_user
+email_notifications:
+  enabled: false
+  recipients: []
+  sender_email: ''
+  sender_password: ''
+  smtp_port: 587
+  smtp_server: smtp.gmail.com
+logging:
+  level: INFO
+  max_size_mb: 100
+  retention_days: 30
+scheduler:
+  job_timeout: 3600
+  max_concurrent_jobs: 3
+  retry_delay: 300
+  retry_limit: 3
+security:
+  require_auth: true
+  secret_key: 6bf29bddee0056b106be146cedc7e70199900b42b0f78f07
+  session_duration: 3600

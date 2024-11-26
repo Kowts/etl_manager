@@ -7,6 +7,8 @@ from datetime import datetime
 import time
 import plotly.graph_objects as go
 from scheduler import ETLScheduler
+from database.postgresql_client import PostgreSQLClient
+from database.postgresql_generic_crud import PostgresqlGenericCRUD
 
 class ETLManagerApp:
     def __init__(self):
@@ -16,10 +18,30 @@ class ETLManagerApp:
             layout="wide"
         )
 
+        # Initialize database connection
+        self.db_config = {
+            'host': st.secrets.get('DB_HOST', 'localhost'),
+            'port': st.secrets.get('DB_PORT', 5432),
+            'dbname': st.secrets.get('DB_NAME', 'etl_manager'),
+            'user': st.secrets.get('DB_USER', 'postgres'),
+            'password': st.secrets.get('DB_PASSWORD', ''),
+            'min_pool_size': 2,
+            'max_pool_size': 10
+        }
+
+        # Initialize PostgreSQL client and CRUD operations
+        self.db_client = PostgreSQLClient(self.db_config)
+        self.db_client.connect()
+        self.crud = PostgresqlGenericCRUD(self.db_client)
+
         # Initialize scheduler
         self.scheduler = ETLScheduler()
 
         # Setup logging
+        self._setup_logging()
+
+    def _setup_logging(self):
+        """Setup logging configuration"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(message)s',
@@ -44,12 +66,176 @@ class ETLManagerApp:
 
         with tabs[1]:
             self.render_job_management()
-
         with tabs[2]:
             self.render_logs()
 
         with tabs[3]:
             self.render_settings()
+
+        with tabs[4]:
+            self.render_database_operations()
+
+    def render_database_operations(self):
+        """Render database operations interface"""
+        st.subheader("Database Operations")
+
+        # Table selection
+        tables = self.get_available_tables()
+        selected_table = st.selectbox("Select Table", tables)
+
+        if selected_table:
+            operation = st.radio("Select Operation",
+                               ["View Data", "Add Records", "Update Records", "Delete Records"])
+
+            if operation == "View Data":
+                self.render_view_data(selected_table)
+            elif operation == "Add Records":
+                self.render_add_records(selected_table)
+            elif operation == "Update Records":
+                self.render_update_records(selected_table)
+            elif operation == "Delete Records":
+                self.render_delete_records(selected_table)
+
+    def get_available_tables(self):
+        """Get list of available tables"""
+        try:
+            query = """
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+            """
+            result = self.crud.execute_raw_query(query)
+            return [row['table_name'] for row in result]
+        except Exception as e:
+            st.error(f"Error fetching tables: {str(e)}")
+            return []
+
+    def render_view_data(self, table: str):
+        """Render table data view"""
+        try:
+            # Get column names
+            columns = self.crud._get_table_columns(table, show_id=True)
+
+            # Add filters
+            with st.expander("Filters"):
+                filters = {}
+                for col in columns:
+                    if st.checkbox(f"Filter by {col}"):
+                        filters[col] = st.text_input(f"Value for {col}")
+
+            # Construct WHERE clause
+            where_clause = " AND ".join([f"{k} = %s" for k in filters.keys()])
+            params = tuple(filters.values())
+
+            # Get data
+            data = self.crud.read(
+                table=table,
+                where=where_clause if filters else "",
+                params=params if filters else None
+            )
+
+            # Display as dataframe
+            if data:
+                df = pd.DataFrame(data)
+                st.dataframe(df)
+            else:
+                st.info("No data found")
+
+        except Exception as e:
+            st.error(f"Error viewing data: {str(e)}")
+
+    def render_add_records(self, table: str):
+        """Render interface to add records"""
+        try:
+            columns = self.crud._get_table_columns(table, show_id=False)
+
+            with st.form("add_record_form"):
+                record_data = {}
+                for col in columns:
+                    record_data[col] = st.text_input(f"Enter {col}")
+
+                if st.form_submit_button("Add Record"):
+                    # Validate data
+                    if all(record_data.values()):
+                        values = [(tuple(record_data.values()),)]
+                        if self.crud.create(table, values, columns):
+                            st.success("Record added successfully!")
+                        else:
+                            st.error("Failed to add record")
+                    else:
+                        st.warning("Please fill all fields")
+
+        except Exception as e:
+            st.error(f"Error adding record: {str(e)}")
+
+    def render_update_records(self, table: str):
+        """Render interface to update records"""
+        try:
+            # Get existing records
+            data = self.crud.read(table)
+            if not data:
+                st.info("No records to update")
+                return
+
+            # Display current data
+            df = pd.DataFrame(data)
+            st.dataframe(df)
+
+            # Update form
+            with st.form("update_record_form"):
+                # Select record to update
+                record_id = st.number_input("Enter ID to update", min_value=1)
+
+                # Get columns
+                columns = self.crud._get_table_columns(table, show_id=False)
+
+                # Update fields
+                updates = {}
+                for col in columns:
+                    if st.checkbox(f"Update {col}"):
+                        updates[col] = st.text_input(f"New value for {col}")
+
+                if st.form_submit_button("Update Record"):
+                    if updates:
+                        if self.crud.update(table, updates, "id = %s", (record_id,)):
+                            st.success("Record updated successfully!")
+                        else:
+                            st.error("Failed to update record")
+                    else:
+                        st.warning("Please select fields to update")
+
+        except Exception as e:
+            st.error(f"Error updating record: {str(e)}")
+
+    def render_delete_records(self, table: str):
+        """Render interface to delete records"""
+        try:
+            # Get existing records
+            data = self.crud.read(table)
+            if not data:
+                st.info("No records to delete")
+                return
+
+            # Display current data
+            df = pd.DataFrame(data)
+            st.dataframe(df)
+
+            with st.form("delete_record_form"):
+                record_id = st.number_input("Enter ID to delete", min_value=1)
+
+                confirm = st.checkbox("I confirm I want to delete this record")
+
+                if st.form_submit_button("Delete Record"):
+                    if confirm:
+                        if self.crud.delete(table, "id = %s", (record_id,)):
+                            st.success("Record deleted successfully!")
+                        else:
+                            st.error("Failed to delete record")
+                    else:
+                        st.warning("Please confirm deletion")
+
+        except Exception as e:
+            st.error(f"Error deleting record: {str(e)}")
 
     def render_sidebar(self):
         st.sidebar.title("ETL Manager")
